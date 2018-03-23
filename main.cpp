@@ -3,6 +3,7 @@
 #include <unistd.h>
 using namespace std;
 
+extern char *optarg;
 struct Room {
 	short status[5];
 };
@@ -11,26 +12,61 @@ struct Point {
 	int y;
 };
 void printHelp();
+void initMaze(Room **&room, Point *Entrance, Point *Exit);
 bool playing(Room **room, Point *Entrance, Point *Exit, int direction);
 int main(int argc, char* argv[]) {
 
-	int x, y;
+	
 	Room **room = NULL;
 	Point *Entrance = new Point, *Exit = new Point;
 
 	char c;
-	while((c=getopt(argc, argv, "fh:")) != -1){
+	while((c=getopt(argc, argv, "hf:")) != -1){
 		switch(c)
     		{
-        	case'f':
+		case'f':
+		initMaze(room, Entrance, Exit);
+		int direction;
+		while (1) {
+
+			cin >> direction;
+
+			if (playing(room, Entrance, Exit, direction)) {
+
+				cout << "Finish" << endl;
+
+				break;
+
+			}
+
+		}
+		break;
+
+        	case'h':
 		printHelp();
+		break;
+
+		default:
+		cout << "Error command" << endl;
 		break;
     		}
 	}
 
-	ifstream inputFile("mazefile.txt");
-	inputFile >> x >> y;
+	return 0;
+}
+void printHelp() {
+	cout << "<<Leave the maze>>" << endl;
+	cout <<	"Rule:" << endl;
+	cout << "1 moves to upper." << endl;
+	cout << "2 moves to left." << endl;
+	cout << "3 moves to right." << endl;
+	cout << "4 moves to below." << endl;
+}
+void initMaze(Room **&room, Point *Entrance, Point *Exit) {
+	int x, y;
+	ifstream inputFile(optarg);
 
+	inputFile >> x >> y;
 	room = new Room*[x];
 	for (int i = 0; i < y; i++)
 	{
@@ -54,26 +90,6 @@ int main(int argc, char* argv[]) {
 			}
 		}
 	}
-
-	int direction;
-	while (1) {
-		cin >> direction;
-		if (playing(room, Entrance, Exit, direction)) {
-			cout << "Finish" << endl;
-			break;
-		}
-	}
-
-
-	return 0;
-}
-void printHelp() {
-	cout << "<<Leave the maze>>" << endl;
-	cout <<	"Rule:" << endl;
-	cout << "1 moves to upper." << endl;
-	cout << "2 moves to left." << endl;
-	cout << "3 moves to right." << endl;
-	cout << "4 moves to below." << endl;
 }
 bool playing(Room **room, Point *Entrance, Point *Exit, int direction) {
 	switch (direction)
