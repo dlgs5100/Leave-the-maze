@@ -8,7 +8,7 @@ pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t condition_var = PTHREAD_COND_INITIALIZER;
 
 int direction;
-bool isClear = false;
+bool isClear = false, isInitial = false, isEnter = false;
 extern char *optarg;
 struct Room {
 	short status[5];
@@ -23,8 +23,8 @@ Point *Entrance = new Point, *Exit = new Point;
 void *command_Thread_func(void* i);
 void *main_Thread_func(void* i);
 void printHelp();
-void initMaze(Room **&room, Point *Entrance, Point *Exit);
-bool playing(Room **room, Point *Entrance, Point *Exit, int direction);
+bool initMaze();
+bool playing(int direction);
 int pthread_create(pthread_t *thread, const pthread_attr_t *attr, void *(*start_routine) (void *), void *arg);
 
 int main(int argc, char* argv[]) {
@@ -61,12 +61,12 @@ int main(int argc, char* argv[]) {
 }
 void *command_Thread_func(void* i){
 	
-	initMaze(room, Entrance, Exit);
+	isInitial = initMaze();
 	while (1) {
 		pthread_mutex_lock(&mutex);
 		
 		cin >> direction;
-		
+		isEnter = true;
 		pthread_cond_wait(&condition_var, &mutex);
 		
 		if(isClear){
@@ -78,12 +78,21 @@ void *command_Thread_func(void* i){
 	}
 }
 void *main_Thread_func(void* i){
-	pthread_mutex_lock(&mutex);
+
+	while (1) {
+		pthread_mutex_lock(&mutex);
 	
-	isClear = playing(room, Entrance, Exit, direction);
-	pthread_cond_signal(&condition_var);
+		if(isInitial && isEnter){
+
+			isClear = playing(direction);
+			isEnter = false;
+			pthread_cond_signal(&condition_var);
+		}
 		
-	pthread_mutex_unlock(&mutex);
+		pthread_mutex_unlock(&mutex);
+		
+		if(isClear)	return NULL;
+	}
 }
 void printHelp() {
 	cout << "<<Leave the maze>>" << endl;
@@ -93,7 +102,7 @@ void printHelp() {
 	cout << "3 moves to right." << endl;
 	cout << "4 moves to below." << endl;
 }
-void initMaze(Room **&room, Point *Entrance, Point *Exit) {
+bool initMaze() {
 	int x, y;
 	ifstream inputFile(optarg);
 
@@ -121,8 +130,11 @@ void initMaze(Room **&room, Point *Entrance, Point *Exit) {
 			}
 		}
 	}
+	return true;
+	//cout << "1" << Entrance->x << endl;
 }
-bool playing(Room **room, Point *Entrance, Point *Exit, int direction) {
+bool playing(int direction) {
+	//cout << "2" << Entrance->x << endl;
 	switch (direction)
 	{
 	case 1:
