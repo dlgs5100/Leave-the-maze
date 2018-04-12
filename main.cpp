@@ -1,15 +1,10 @@
 #include<iostream>
 #include<fstream>
 #include<unistd.h>
-#include<pthread.h>
+#include<string>
+#include<cstdio>
 using namespace std;
 
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t condition_var = PTHREAD_COND_INITIALIZER;
-
-int direction;
-bool isClear = false, isInitial = false, isEnter = false;
-extern char *optarg;
 struct Room {
 	short status[5];
 };
@@ -19,34 +14,66 @@ struct Point {
 };
 
 Room **room = NULL;
-Point *Entrance = new Point, *Exit = new Point;
-void *command_Thread_func(void* i);
-void *main_Thread_func(void* i);
+Point *Entrance = NULL, *Exit = NULL;
+extern char *optarg;
+
 void printHelp();
-bool initMaze();
-bool playing(int direction);
-int pthread_create(pthread_t *thread, const pthread_attr_t *attr, void *(*start_routine) (void *), void *arg);
+void initMaze();
+string playing(int direction);
+int pipe(int pipefd[2]);
 
 int main(int argc, char* argv[]) {
 
+	int pipefd1[2],pipefd2[2];
+    int pid;
+    pipe(pipefd1);
+	pipe(pipefd2);
+    pid = fork();
+	
 	char c;
 	while((c=getopt(argc, argv, "hf:")) != -1){
 		switch(c)
-    		{
+    	{
 		case'f':
-
-		pthread_t command_Thread, main_Thread;
-	
-		pthread_create(&command_Thread, NULL, &command_Thread_func, NULL);
-		pthread_create(&main_Thread, NULL, &main_Thread_func, NULL);
 		
-		pthread_join(command_Thread, NULL);
-		pthread_join(main_Thread, NULL);
+		if (pid < 0)            
+			printf("error in fork!");
+    	else if (pid == 0) {
+    		int direction;
+			char result[20];
+    		while (result != "Finish!") {
+				cin >> direction;
+				close(pipefd1[0]);
+	   			write(pipefd1[1], &direction, sizeof(direction));
+				
+				close(pipefd2[1]);
+        		read(pipefd2[0], result, sizeof(result));
+				
+				cout << result << endl;
+			}
+		}
+    	else{
+			int direction=0;
+			string result;
+			initMaze();                 
+			while (result != "Finish!") {
+				close(pipefd1[1]);
+        		read(pipefd1[0], &direction, sizeof(direction));
+				
+				result.assign(playing((int)direction));
+				
+				close(pipefd2[0]);
+				write(pipefd2[1], result.c_str(), result.length()+1);		//pipe can not transmit C++ string, so transform to char array
+			}
+			sleep(0.5);
+   		}
 		
 		break;
 
         case'h':
-		printHelp();
+        
+        if(pid != 0)
+			printHelp();
 		
 		break;
 
@@ -54,46 +81,12 @@ int main(int argc, char* argv[]) {
 		cout << "Error command" << endl;
 		
 		break;
-    		}
+    	}
 	}
 
 	return 0;
 }
-void *command_Thread_func(void* i){
-	
-	isInitial = initMaze();
-	while (1) {
-		pthread_mutex_lock(&mutex);
-		
-		cin >> direction;
-		isEnter = true;
-		pthread_cond_wait(&condition_var, &mutex);
-		
-		if(isClear){
-			cout << "Finish" << endl;
-			return NULL;
-		}
-		
-		pthread_mutex_unlock(&mutex);
-	}
-}
-void *main_Thread_func(void* i){
 
-	while (1) {
-		pthread_mutex_lock(&mutex);
-	
-		if(isInitial && isEnter){
-
-			isClear = playing(direction);
-			isEnter = false;
-			pthread_cond_signal(&condition_var);
-		}
-		
-		pthread_mutex_unlock(&mutex);
-		
-		if(isClear)	return NULL;
-	}
-}
 void printHelp() {
 	cout << "<<Leave the maze>>" << endl;
 	cout <<	"Rule:" << endl;
@@ -102,9 +95,12 @@ void printHelp() {
 	cout << "3 moves to right." << endl;
 	cout << "4 moves to below." << endl;
 }
-bool initMaze() {
+void initMaze() {
 	int x, y;
 	ifstream inputFile(optarg);
+	
+	Entrance = new Point;
+	Exit = new Point;
 
 	inputFile >> x >> y;
 	room = new Room*[x];
@@ -130,50 +126,49 @@ bool initMaze() {
 			}
 		}
 	}
-	return true;
-	//cout << "1" << Entrance->x << endl;
 }
-bool playing(int direction) {
-	//cout << "2" << Entrance->x << endl;
+string playing(int direction) {
+	
+	string result;
 	switch (direction)
 	{
 	case 1:
 		if (room[Entrance->x][Entrance->y].status[0] == 2){
 			Entrance->x -= 1;
-			cout << "Turn up!" << endl;
+			result.assign("Turn up!");
 		}
 		else
-			cout << "Wall!" << endl;
+			result.assign("Wall!");
 		break;
 	case 2:
 		if (room[Entrance->x][Entrance->y].status[1] == 2){
 			Entrance->y -= 1;
-			cout << "Turn left!" << endl;
+			result.assign("Turn left!");
 		}
 		else
-			cout << "Wall!" << endl;
+			result.assign("Wall!");
 		break;
 	case 3:
 		if (room[Entrance->x][Entrance->y].status[2] == 2){
 			Entrance->y += 1;
-			cout << "Turn right!" << endl;
+			result.assign("Turn right!");
 		}
 		else
-			cout << "Wall!" << endl;
+			result.assign("Wall!");
 		break;
 	case 4:
 		if (room[Entrance->x][Entrance->y].status[3] == 2){
 			Entrance->x += 1;
-			cout << "Turn down!" << endl;
+			result.assign("Turn down!");
 		}
 		else
-			cout << "Wall!" << endl;
+			result.assign("Wall!");
 		break;
 	default:
 		break;
 	}
 	if (Entrance->x == Exit->x && Entrance->y == Exit->y)
-		return true;
-	else
-		return false;
+		result.assign("Finish!");
+
+	return result;
 }
