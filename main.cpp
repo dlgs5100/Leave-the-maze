@@ -3,6 +3,8 @@
 #include<unistd.h>
 #include<string>
 #include<cstdio>
+#include<sys/ipc.h>
+#include<sys/msg.h>
 using namespace std;
 
 struct Room {
@@ -12,6 +14,16 @@ struct Point {
 	int x;
 	int y;
 };
+struct msgbuf_direction
+{
+    long mtype;
+    int direction;
+};
+struct msgbuf_result
+{
+    long mtype;
+    string result;
+};
 
 Room **room = NULL;
 Point *Entrance = NULL, *Exit = NULL;
@@ -20,15 +32,12 @@ extern char *optarg;
 void printHelp();
 void initMaze();
 string playing(int direction);
-int pipe(int pipefd[2]);
 
 int main(int argc, char* argv[]) {
 
-	int pipefd1[2],pipefd2[2];
     int pid;
-    pipe(pipefd1);
-	pipe(pipefd2);
-    pid = fork();
+	int flag;
+	pid = fork();
 	
 	char c;
 	while((c=getopt(argc, argv, "hf:")) != -1){
@@ -39,31 +48,65 @@ int main(int argc, char* argv[]) {
 		if (pid < 0)            
 			printf("error in fork!");
     	else if (pid == 0) {
-    		int direction;
-			char result[20];
-    		while (result != "Finish!") {
-				cin >> direction;
-				close(pipefd1[0]);
-	   			write(pipefd1[1], &direction, sizeof(direction));
-				
-				close(pipefd2[1]);
-        		read(pipefd2[0], result, sizeof(result));
-				
-				cout << result << endl;
+			struct msgbuf_direction buf_direction;
+			struct msgbuf_result buf_result;
+			int msqid;
+			msqid = msgget((key_t)12345, 0666|IPC_CREAT);
+    		if ( msqid < 0 )
+    		{
+				cout << "msgget error!" << endl;
+        		return -1;
+    		}
+
+    		while (buf_result.result != "Finish!") {				
+
+				buf_direction.mtype = 1;
+    			cin >> buf_direction.direction;
+    			flag = msgsnd( msqid, &buf_direction, sizeof(struct msgbuf_direction), 0);
+    			if (flag < 0)
+    			{
+					cout << "send direction error" << endl;
+        			return -1;
+    			}
+
+				flag = msgrcv( msqid, &buf_result, sizeof(struct msgbuf_result) ,2,0 ) ;
+				if (flag < 0)
+    			{
+					cout << "recieve result error" << endl;
+        			return -1;
+    			}
+
+				cout << buf_result.result << endl;
 			}
 		}
     	else{
-			int direction=0;
-			string result;
+			struct msgbuf_direction buf_direction;
+			struct msgbuf_result buf_result;
+			int msqid;
+			msqid = msgget((key_t)12345, 0666|IPC_CREAT);
+    		if ( msqid < 0 )
+    		{
+				cout << "msgget error!" << endl;
+        		return -1;
+    		}
+
 			initMaze();                 
-			while (result != "Finish!") {
-				close(pipefd1[1]);
-        		read(pipefd1[0], &direction, sizeof(direction));
-				
-				result.assign(playing((int)direction));
-				
-				close(pipefd2[0]);
-				write(pipefd2[1], result.c_str(), result.length()+1);		//pipe can not transmit C++ string, so transform to char array
+			while (buf_result.result != "Finish!") {
+				flag = msgrcv( msqid, &buf_direction, sizeof(struct msgbuf_direction) ,1,0 );
+				if (flag < 0)
+    			{
+					cout << "recieve direction error" << endl;
+        			return -1;
+    			}
+
+				buf_result.mtype = 2;
+    			buf_result.result.assign(playing(buf_direction.direction));
+				flag = msgsnd( msqid, &buf_result, sizeof(struct msgbuf_result), 0);
+    			if (flag < 0)
+    			{
+					cout << "send result error" << endl;
+        			return -1;
+    			}
 			}
 			sleep(0.5);
    		}
