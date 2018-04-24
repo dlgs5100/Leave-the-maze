@@ -28,24 +28,55 @@ struct msgbuf_result
 Room **room = NULL;
 Point *Entrance = NULL, *Exit = NULL;
 extern char *optarg;
+bool isInitial = false;
 
 void printHelp();
-void initMaze();
+bool initMaze();
 string playing(int direction);
+
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t condition_var = PTHREAD_COND_INITIALIZER;
+int pthread_create(pthread_t *thread, const pthread_attr_t *attr, void *(*start_routine) (void *), void *arg);
+void *command_Thread_func(void* i);
+void *main_Thread_func(void* i);
+int direction;
+bool isClear = false, isEnter = false;
+string result;
 
 int main(int argc, char* argv[]) {
 
     int pid;
 	int flag;
-	pid = fork();
+	//pid = fork();
 	
 	char c;
-	while((c=getopt(argc, argv, "hf:")) != -1){
+	while((c=getopt(argc, argv, "hf:tp")) != -1){
 		switch(c)
     	{
+    	case't':
+    	
+    	if(isInitial){
+			pthread_t command_Thread, main_Thread;
+	
+			pthread_create(&command_Thread, NULL, &command_Thread_func, NULL);
+			pthread_create(&main_Thread, NULL, &main_Thread_func, NULL);
+		
+			pthread_join(command_Thread, NULL);
+			pthread_join(main_Thread, NULL);
+		}
+		else
+			cout << "Please load the mazefile before playing!" << endl;
+    	
+    	break;
+    	
+    	case'p':
+    	
+    	break;
+    	
 		case'f':
 		
-		if (pid < 0)            
+		isInitial = initMaze();
+		/*if (pid < 0)            
 			printf("error in fork!");
     	else if (pid == 0) {
 			struct msgbuf_direction buf_direction;
@@ -109,7 +140,7 @@ int main(int argc, char* argv[]) {
     			}
 			}
 			sleep(0.5);
-   		}
+   		}*/
 		
 		break;
 
@@ -130,6 +161,42 @@ int main(int argc, char* argv[]) {
 	return 0;
 }
 
+void *command_Thread_func(void* i){
+	
+	//initMaze();
+	while (result != "Finish!") {
+		pthread_mutex_lock(&mutex);
+		
+		cin >> direction;
+		isEnter = true;
+		pthread_cond_wait(&condition_var, &mutex);
+		
+		cout << result << endl;
+		if(result == "Finish!") break;
+		
+		pthread_mutex_unlock(&mutex);
+	}
+	return NULL;
+}
+void *main_Thread_func(void* i){
+
+	while (result != "Finish!") {
+		pthread_mutex_lock(&mutex);
+	
+		if(isEnter){
+
+			result = playing(direction);
+			isEnter = false;
+			pthread_cond_signal(&condition_var);
+		}
+		
+		pthread_mutex_unlock(&mutex);
+		
+		//if(result == "Finish!")	
+	}
+	return NULL;
+}
+
 void printHelp() {
 	cout << "<<Leave the maze>>" << endl;
 	cout <<	"Rule:" << endl;
@@ -138,7 +205,7 @@ void printHelp() {
 	cout << "3 moves to right." << endl;
 	cout << "4 moves to below." << endl;
 }
-void initMaze() {
+bool initMaze() {
 	int x, y;
 	ifstream inputFile(optarg);
 	
@@ -169,6 +236,8 @@ void initMaze() {
 			}
 		}
 	}
+	
+	return true;
 }
 string playing(int direction) {
 	
