@@ -1,10 +1,15 @@
 #include<iostream>
 #include<fstream>
 #include<unistd.h>
+#include<error.h>
+#include<string.h>
 #include<string>
 #include<cstdio>
+#include<cstdlib>
 #include<sys/ipc.h>
-#include<sys/msg.h>
+#include<sys/shm.h>
+#include<sys/sem.h>
+#define SIZE 1024
 using namespace std;
 
 struct Room {
@@ -14,15 +19,18 @@ struct Point {
 	int x;
 	int y;
 };
-struct msgbuf_direction
-{
+struct msgbuf_direction {
     long mtype;
     int direction;
 };
-struct msgbuf_result
-{
+struct msgbuf_result {
     long mtype;
     string result;
+};
+union semun {
+    int setval;
+    struct semid_ds *buf;
+    unsigned short *array;
 };
 
 Room **room = NULL;
@@ -33,7 +41,7 @@ bool isInitial = false;
 void printHelp();
 bool initMaze();
 string playing(int direction);
-
+//For Thread
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t condition_var = PTHREAD_COND_INITIALIZER;
 int pthread_create(pthread_t *thread, const pthread_attr_t *attr, void *(*start_routine) (void *), void *arg);
@@ -42,12 +50,14 @@ void *main_Thread_func(void* i);
 int direction;
 bool isClear = false, isEnter = false;
 string result;
+//For Proccess
+void command_Proccess_func();
+void main_Proccess_func();
 
 int main(int argc, char* argv[]) {
 
     int pid;
 	int flag;
-	//pid = fork();
 	
 	char c;
 	while((c=getopt(argc, argv, "hf:tp")) != -1){
@@ -70,77 +80,28 @@ int main(int argc, char* argv[]) {
     	break;
     	
     	case'p':
-    	
+    		
+		if(isInitial){
+			
+			pid = fork();
+
+			if (pid < 0)            
+				perror("error in fork!");
+    		else if (pid == 0) {
+				command_Proccess_func();
+			}
+			else{
+				main_Proccess_func();
+			}
+		}
+		else
+			cout << "Please load the mazefile before playing!" << endl;
+
     	break;
     	
 		case'f':
 		
 		isInitial = initMaze();
-		/*if (pid < 0)            
-			printf("error in fork!");
-    	else if (pid == 0) {
-			struct msgbuf_direction buf_direction;
-			struct msgbuf_result buf_result;
-			int msqid;
-			msqid = msgget((key_t)12345, 0666|IPC_CREAT);
-    		if ( msqid < 0 )
-    		{
-				cout << "msgget error!" << endl;
-        		return -1;
-    		}
-
-    		while (buf_result.result != "Finish!") {				
-
-				buf_direction.mtype = 1;
-    			cin >> buf_direction.direction;
-    			flag = msgsnd( msqid, &buf_direction, sizeof(struct msgbuf_direction), 0);
-    			if (flag < 0)
-    			{
-					cout << "send direction error" << endl;
-        			return -1;
-    			}
-
-				flag = msgrcv( msqid, &buf_result, sizeof(struct msgbuf_result) ,2,0 ) ;
-				if (flag < 0)
-    			{
-					cout << "recieve result error" << endl;
-        			return -1;
-    			}
-
-				cout << buf_result.result << endl;
-			}
-		}
-    	else{
-			struct msgbuf_direction buf_direction;
-			struct msgbuf_result buf_result;
-			int msqid;
-			msqid = msgget((key_t)12345, 0666|IPC_CREAT);
-    		if ( msqid < 0 )
-    		{
-				cout << "msgget error!" << endl;
-        		return -1;
-    		}
-
-			initMaze();                 
-			while (buf_result.result != "Finish!") {
-				flag = msgrcv( msqid, &buf_direction, sizeof(struct msgbuf_direction) ,1,0 );
-				if (flag < 0)
-    			{
-					cout << "recieve direction error" << endl;
-        			return -1;
-    			}
-
-				buf_result.mtype = 2;
-    			buf_result.result.assign(playing(buf_direction.direction));
-				flag = msgsnd( msqid, &buf_result, sizeof(struct msgbuf_result), 0);
-    			if (flag < 0)
-    			{
-					cout << "send result error" << endl;
-        			return -1;
-    			}
-			}
-			sleep(0.5);
-   		}*/
 		
 		break;
 
@@ -163,7 +124,6 @@ int main(int argc, char* argv[]) {
 
 void *command_Thread_func(void* i){
 	
-	//initMaze();
 	while (result != "Finish!") {
 		pthread_mutex_lock(&mutex);
 		
@@ -190,11 +150,72 @@ void *main_Thread_func(void* i){
 			pthread_cond_signal(&condition_var);
 		}
 		
-		pthread_mutex_unlock(&mutex);
-		
-		//if(result == "Finish!")	
+		pthread_mutex_unlock(&mutex);	
 	}
 	return NULL;
+}
+
+void command_Proccess_func(){
+	char* shm_ptr;
+
+	int shm_id = shmget((key_t)12345, SIZE, 0666 | IPC_CREAT);
+	if (shm_id == -1) perror("shmget error");
+
+	shm_ptr = (char*)shmat(shm_id, (void *)0, 0);
+    if (shm_ptr == (void *)-1) perror("shmget error");
+	
+	int ret;
+	int semid;
+	semid = semget((key_t)123, 2, IPC_CREAT | 0600);
+    if (semid == -1) perror("semget error");
+	
+	union semun sem_args;
+    unsigned short array[2]={1,1};
+    sem_args.array = array;
+    ret = semctl(semid, 1, SETALL, sem_args);
+
+	struct sembuf sem_opt_wait1[1] = {0, -1, SEM_UNDO};
+    struct sembuf sem_opt_wakeup1[1] = {0, 1, SEM_UNDO};
+    struct sembuf sem_opt_wait2[1] = {1, -1, SEM_UNDO};
+    struct sembuf sem_opt_wakeup2[1] = {1, 1, SEM_UNDO};
+
+	while(1){
+		cin >> direction;
+
+       	semop(semid, sem_opt_wait2, 1);
+      	sprintf(shm_ptr, "%d", direction);
+       	semop(semid, sem_opt_wakeup1, 1);
+
+		cout << shm_ptr << endl;
+       	if(strcmp(shm_ptr,"Finish!") == 0) break;
+    }
+}
+void main_Proccess_func(){
+	char* shm_ptr;
+
+	int shm_id = shmget((key_t)12345, SIZE, 0666 | IPC_CREAT);
+	if (shm_id == -1) perror("shmget error");
+
+
+	shm_ptr = (char*)shmat(shm_id, (void *)0, 0);
+    if (shm_ptr == (void *)-1) perror("shmget error");
+	
+	int semid;
+	semid = semget((key_t)123, 0, IPC_CREAT | 0600);
+    if (semid == -1) perror("semget error");
+
+	struct sembuf sem_opt_wait1[1] = {0, -1, SEM_UNDO};
+    struct sembuf sem_opt_wakeup1[1] = {0, 1, SEM_UNDO};
+    struct sembuf sem_opt_wait2[1] = {1, -1, SEM_UNDO};
+    struct sembuf sem_opt_wakeup2[1] = {1, 1, SEM_UNDO};
+
+	while(1){
+		semop(semid, sem_opt_wait1, 1);
+		strcpy(shm_ptr, playing(atoi(shm_ptr)).c_str());
+		semop(semid, sem_opt_wakeup2, 1);
+		if(strcmp(shm_ptr,"Finish!") == 0) break;
+	}
+	sleep(0.5);
 }
 
 void printHelp() {
