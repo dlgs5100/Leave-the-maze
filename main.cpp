@@ -107,8 +107,7 @@ int main(int argc, char* argv[]) {
 
         case'h':
         
-        if(pid != 0)
-			printHelp();
+		printHelp();
 		
 		break;
 
