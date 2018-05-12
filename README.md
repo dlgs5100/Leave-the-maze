@@ -1,6 +1,8 @@
 # Leave-the-maze
 ## Purpose:
 Training **Inter-Process Communication(IPC)** and **Remote Procedure Call(RPC)** in Linux.
+
+---
 ## Rules:
 ![](Image/rule.JPG)
 1. Each room should be implemented by a room structure, and the room structure contains five short vale, as shown the following:
@@ -14,13 +16,14 @@ Training **Inter-Process Communication(IPC)** and **Remote Procedure Call(RPC)**
 >- 3,1,1,2,0
 >- …
 3. At initial, the play should be at the entrance, and use the value from 1 to 4 to move to different direction. The 1 moves to upper, 2 moves to left, 3 moves to right, and 4 moves to the below room. When there is no wall in the moving direction, the player moves to the direction room. When the moving direction is exit, the game is finish. The user can use the value from 1 to 4 to control the moving direction.
-## IPC
-### Multi-Threads version
+### IPC
+#### Multi-Threads version
 > Two threads are used to send and receive the command and response through one variable, and Pthread synchronization mechanisms should be used to solve mutual exclusion problem.
-### Multi-Processes version
+#### Multi-Processes version
 > Two processes send and receive the command and response through one variable in the shared memory, and semaphore should be used to solve mutual exclusion problem.
-## RPC
+### RPC
 >Two processes send and receive the command and response through RPC.
+---
 ## Command
 ### IPC
 >- **g++ main.cpp -lpthread** //Link the program with the pthread library
@@ -33,4 +36,7 @@ Training **Inter-Process Communication(IPC)** and **Remote Procedure Call(RPC)**
 >- **g++ rpc_c.cpp rpc_clnt.c rpc_xdr.c -g -o rpcclient** //Compile rpc_c with rpc_svc rpc_xdr and debug function.
 >- **./rpcser** //Execute server
 >- **./rpcclient -h** //Execute client and help function
->- **./rpcclient -f mazefile.txt** //Execute client and play the game
+>- **./rpcclient -f mazefile.txt** //Execute client and play the 
+---
+## License and copyright
+© Jerry Cheng
