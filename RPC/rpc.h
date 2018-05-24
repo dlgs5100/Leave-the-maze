@@ -23,7 +23,7 @@ struct msg {
 };
 typedef struct msg msg;
 
-#define RPC_PROG 1
+#define RPC_PROG 0x9000
 #define RPC_VERS 1
 
 #if defined(__STDC__) || defined(__cplusplus)
